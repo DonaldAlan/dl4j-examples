@@ -3,7 +3,6 @@ package org.deeplearning4j.examples.userInterface.util;
 import javafx.animation.AnimationTimer;
 import javafx.application.Application;
 import javafx.event.*;
-import javafx.event.Event;
 import javafx.geometry.Insets;
 import javafx.scene.DepthTest;
 import javafx.scene.Group;
@@ -40,8 +39,6 @@ import java.text.NumberFormat;
 import java.util.*;
 import java.util.List;
 
-import static javafx.scene.input.KeyCode.Q;
-import static javafx.scene.input.KeyCode.R;
 import static org.nd4j.linalg.util.ArrayUtil.sum;
 
 
@@ -204,7 +201,7 @@ public class GradientsViewer extends Application {
             }
         };
         root.addEventFilter(KeyEvent.KEY_PRESSED, filter);
-        }
+    }
     private void handleMouse(Scene scene) {
         scene.setOnMousePressed((MouseEvent me) -> {
             mousePosX = me.getSceneX();
@@ -248,6 +245,7 @@ public class GradientsViewer extends Application {
             }
         });
     }
+
     private void handleKeyEvent(Event event) {
         KeyEvent ke = (KeyEvent) event;
         // System.out.println(ke.getCharacter() + " " + ke.getCode());
@@ -304,7 +302,6 @@ public class GradientsViewer extends Application {
             }
         };
         scene.setOnKeyPressed(handler);
-
     }
     //-------------------
     private void initializeCapture() {
@@ -383,7 +380,6 @@ public class GradientsViewer extends Application {
             }
             int sampleIndex=0;
             for (List<Integer> coordinates:chosen) {
-//   public GradientShape(String mapKey, int layerIndex,int sampleIndex, int coordinateInIndArray) {
                 new GradientShape(key, layerIndex, sampleIndex, coordinates,sampleLengthWeWillUse);
                 sampleIndex++;
             }
@@ -395,8 +391,6 @@ public class GradientsViewer extends Application {
     // the animation handler will apply the updates to the JavaFX shapes themselves.
     public void requestBackwardPassUpdate(Model model) {
         Gradient gradient = model.gradient();
-       // INDArray gradientArray = gradient.gradient();
-        // gradientArrayShape = [1,541859]
         Map<String, INDArray> map= gradient.gradientForVariable();
 
         if (sampleCoordinatesNeedToBeChosen) {
