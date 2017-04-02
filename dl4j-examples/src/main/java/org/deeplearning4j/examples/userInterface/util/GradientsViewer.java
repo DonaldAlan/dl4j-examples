@@ -3,10 +3,7 @@ package org.deeplearning4j.examples.userInterface.util;
 import javafx.animation.AnimationTimer;
 import javafx.application.Application;
 import javafx.event.*;
-<<<<<<< HEAD
-=======
 import javafx.event.Event;
->>>>>>> efa5f94... Prevent the Slider from consuming the key events (LEFT and RIGHT arrow)
 import javafx.geometry.Insets;
 import javafx.scene.DepthTest;
 import javafx.scene.Group;
