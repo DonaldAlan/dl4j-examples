@@ -3,6 +3,10 @@ package org.deeplearning4j.examples.userInterface.util;
 import javafx.animation.AnimationTimer;
 import javafx.application.Application;
 import javafx.event.*;
+<<<<<<< HEAD
+=======
+import javafx.event.Event;
+>>>>>>> efa5f94... Prevent the Slider from consuming the key events (LEFT and RIGHT arrow)
 import javafx.geometry.Insets;
 import javafx.scene.DepthTest;
 import javafx.scene.Group;
@@ -38,9 +42,6 @@ import java.io.File;
 import java.text.NumberFormat;
 import java.util.*;
 import java.util.List;
-
-import static org.nd4j.linalg.util.ArrayUtil.sum;
-
 
 /**
  * A JavaFX application for viewing gradients in 3D.
@@ -195,7 +196,6 @@ public class GradientsViewer extends Application {
         // We add this to prevent the slider from processing the key event
         EventHandler filter = new EventHandler<InputEvent>() {
             public void handle (InputEvent event){
-                System.out.println("Filtering out event " + event.getEventType());
                 handleKeyEvent(event);
                 event.consume();
             }
@@ -245,7 +245,6 @@ public class GradientsViewer extends Application {
             }
         });
     }
-
     private void handleKeyEvent(Event event) {
         KeyEvent ke = (KeyEvent) event;
         // System.out.println(ke.getCharacter() + " " + ke.getCode());
@@ -386,7 +385,7 @@ public class GradientsViewer extends Application {
             layerIndex++;
         }
         System.out.println();
-     }
+    }
     // We can't update the JavaFX UI components from this thread, so we just store the updates in the GradientShape's variables. Later,
     // the animation handler will apply the updates to the JavaFX shapes themselves.
     public void requestBackwardPassUpdate(Model model) {
@@ -467,3 +466,4 @@ public class GradientsViewer extends Application {
     }
     //--------------------------------------------
 }
+
