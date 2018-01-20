@@ -6,11 +6,11 @@ import org.nd4j.linalg.dataset.DataSet;
 import org.nd4j.linalg.dataset.api.DataSetPreProcessor;
 import org.nd4j.linalg.factory.Nd4j;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.util.*;
+import java.util.function.Predicate;
 
 /** A simple DataSetIterator for use in the GravesLSTMCharModellingExample.
  * Given a text file and a few options, generate feature vectors and labels for training,
@@ -36,6 +36,19 @@ public class CharacterIterator implements DataSetIterator {
 	private Random rng;
     //Offsets for the start of each example
     private LinkedList<Integer> exampleStartOffsets = new LinkedList<>();
+    /**
+     * @param textFilePath Path to text file to use for generating samples
+     * @param textFileEncoding Encoding of the text file. Can try Charset.defaultCharset()
+     * @param miniBatchSize Number of examples per mini-batch
+     * @param exampleLength Number of characters in each input/output vector
+     * @param validCharacters Character array of valid characters. Characters not present in this array will be removed
+     * @param rng Random number generator, for repeatability if required
+     * @throws IOException If text file cannot  be loaded
+     */
+    public CharacterIterator(String textFilePath, Charset textFileEncoding, int miniBatchSize, int exampleLength,
+                             char[] validCharacters, Random rng) throws IOException {
+        this(textFilePath,textFileEncoding,miniBatchSize,exampleLength,validCharacters,rng,null);
+    }
 
 	/**
 	 * @param textFilePath Path to text file to use for generating samples
@@ -44,10 +57,11 @@ public class CharacterIterator implements DataSetIterator {
 	 * @param exampleLength Number of characters in each input/output vector
 	 * @param validCharacters Character array of valid characters. Characters not present in this array will be removed
 	 * @param rng Random number generator, for repeatability if required
+     * @param linesToIgnoreFilter --  null or a predicate which returns true if the line should be ignored.
 	 * @throws IOException If text file cannot  be loaded
 	 */
 	public CharacterIterator(String textFilePath, Charset textFileEncoding, int miniBatchSize, int exampleLength,
-                             char[] validCharacters, Random rng) throws IOException {
+                             char[] validCharacters, Random rng, Predicate<String> linesToIgnoreFilter) throws IOException {
 		if( !new File(textFilePath).exists()) throw new IOException("Could not access file (does not exist): " + textFilePath);
 		if( miniBatchSize <= 0 ) throw new IllegalArgumentException("Invalid miniBatchSize (must be >0)");
 		this.validCharacters = validCharacters;
@@ -61,7 +75,22 @@ public class CharacterIterator implements DataSetIterator {
 
 		//Load file and convert contents to a char[]
 		boolean newLineValid = charToIdxMap.containsKey('\n');
-		List<String> lines = Files.readAllLines(new File(textFilePath).toPath(),textFileEncoding);
+		List<String> lines = new ArrayList<String>(); //Files.readAllLines(new File(textFilePath).toPath(),textFileEncoding);
+
+        BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(textFilePath)));
+        while (true) {
+            String line=reader.readLine();
+            if (line==null) {
+                break;
+            }
+            line=line.trim();
+            lines.add(line);
+        }
+        reader.close();
+
+		if (linesToIgnoreFilter!=null) {
+		     lines.removeIf(linesToIgnoreFilter);
+        }
 		int maxSize = lines.size();	//add lines.size() to account for newline characters at end of each line
 		for( String s : lines ) maxSize += s.length();
 		char[] characters = new char[maxSize];
@@ -89,6 +118,9 @@ public class CharacterIterator implements DataSetIterator {
 
         initializeOffsets();
     }
+    /*
+
+     */
 
     /** A minimal character set, with a-z, A-Z, 0-9 and common punctuation etc */
 	public static char[] getMinimalCharacterSet(){
@@ -231,5 +263,4 @@ public class CharacterIterator implements DataSetIterator {
 	public void remove() {
 		throw new UnsupportedOperationException();
 	}
-
 }

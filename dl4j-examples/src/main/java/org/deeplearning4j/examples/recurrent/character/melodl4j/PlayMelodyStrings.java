@@ -6,6 +6,9 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.Random;
 import javax.sound.midi.InvalidMidiDataException;
 import javax.sound.midi.MidiSystem;
@@ -39,10 +42,15 @@ public class PlayMelodyStrings {
 
     //-----------------------------------
     public static void main(String[] args) {
+        args = new String[] {"d:/tmp/midi-melodies-harmony-bach.txt"};
         try {
           //  playMelody("s2s2s1s",10,48); System.exit(0);
             String pathToMelodiesFile = args.length == 0 ? getPathToExampleMelodiesFile() : args[0];
-            playMelodies(pathToMelodiesFile, "Acoustic Grand Piano", 20);
+            if (pathToMelodiesFile.contains("harmony")) {
+                playMelodiesInHarmony(pathToMelodiesFile, "Acoustic Grand Piano", 20);
+            } else {
+                playMelodies(pathToMelodiesFile, "Acoustic Grand Piano", 20);
+            }
         } catch (Exception exc) {
             exc.printStackTrace();
             System.exit(1);
@@ -70,7 +78,7 @@ public class PlayMelodyStrings {
             }
             lineNumber++;
             line = line.trim();
-            if (line.equals("") || line.startsWith("#")) {
+            if (line.equals("") || line.startsWith("//")) {
                 continue;
             }
             System.out.println("Playing " + lineNumber + " : " + line);
@@ -80,6 +88,29 @@ public class PlayMelodyStrings {
             int startNote = 45 + random.nextInt(6); // for variety
             playMelody(line, startNote, instrumentNumber, secondsToPlay);
             sleep(2000); // so there's a noticeable gap between melodies
+        }
+        reader.close();
+    }
+
+    // TODO: bug:  We don't store the starting pitch, so the harmony sounds bad.
+    public static void playMelodiesInHarmony(String inFilepath, String instrumentName, double secondsToPlay) throws IOException, MidiUnavailableException, InvalidMidiDataException {
+        BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(inFilepath)));
+        int instrumentNumber = instrumentName == null ? 0 : Midi2MelodyStrings.getInstrument(instrumentName);
+        List<String> melodies = new ArrayList<>();
+        while (true) {
+            String line = reader.readLine();
+            if (line==null || line.equals("") || line.startsWith("//")) {
+                if (melodies.size()>1) {
+                    playMelodiesInHarmony(melodies,instrumentNumber,secondsToPlay);
+                    sleep(2000); // so there's a noticeable gap between melodies
+                }
+                if (line==null) {
+                    break;
+                }
+                melodies.clear();
+            } else {
+                melodies.add(line);
+            }
         }
         reader.close();
     }
@@ -235,12 +266,6 @@ public class PlayMelodyStrings {
     // This method will try to play a melody even if the string is malformed.  The neural networks sometimes output invalid substrings, especially at the beginning of learning.
     private static void playMelody(String melody, int startNote, int instrumentNumber, double secondsToPlay) throws MidiUnavailableException, InvalidMidiDataException {
         NoteSequence ns = createNoteSequence(melody, instrumentNumber, startNote);
-//        int numberDistinct = ns.getNumberOfDistinctPitches();
-//        if (numberDistinct<3) {
-//            System.err.println("Warning: only " + numberDistinct + " distinct notes, skipping: " +melody);
-//            sleep(2000);
-//            return;
-//        }
         Sequencer sequencer = MidiSystem.getSequencer();
         System.out.println(",  with " + ns.getLength() + " notes");
         ns.play(sequencer);
@@ -256,7 +281,35 @@ public class PlayMelodyStrings {
             }
         }
     }
-
+    // This method will try to play a melody even if the string is malformed.  The neural networks sometimes output invalid substrings, especially at the beginning of learning.
+    private static void playMelodiesInHarmony(Collection<String> melodies, int instrumentNumber, double secondsToPlay) throws MidiUnavailableException, InvalidMidiDataException {
+        NoteSequence[] noteSequences = new NoteSequence[melodies.size()];
+        int i=0;
+        for(String startPitchAndMelody:melodies) {
+            String [] parts = startPitchAndMelody.split(" ");
+            if (parts.length!=2) {
+                throw new IllegalStateException("Bad melody string: " + startPitchAndMelody);
+            }
+            int startNote = Integer.parseInt(parts[0]);
+            String melody=parts[1];
+            NoteSequence ns = createNoteSequence(melody, instrumentNumber, startNote);
+            noteSequences[i] = ns;
+            i++;
+        }
+        Sequencer sequencer = MidiSystem.getSequencer();
+        NoteSequence.play(sequencer,noteSequences);
+        long tickLength = sequencer.getTickLength();
+        //JOptionPane.showMessageDialog(null, "Click enter to abort.");
+        long startTime = System.currentTimeMillis();
+        while (sequencer.getTickPosition() < tickLength) {
+            sleep(20);
+            long now = System.currentTimeMillis();
+            if (now - startTime > secondsToPlay * 1000) {
+                sequencer.stop();
+                tickLength = 0;
+            }
+        }
+    }
     //---------------------------------
     private static void loadSoundBank() {// Download for higher quality MIDI
         final String filename = "GeneralUser_GS_SoftSynth.sf2";  // FreeFont.sf2   Airfont_340.dls

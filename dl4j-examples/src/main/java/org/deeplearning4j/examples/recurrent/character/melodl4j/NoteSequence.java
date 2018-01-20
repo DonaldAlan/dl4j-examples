@@ -143,7 +143,22 @@ public class NoteSequence implements Comparable<NoteSequence> {
         sequencer.open();
         sequencer.start();
     }
-
+    public static void play(Sequencer sequencer, NoteSequence ... noteSequences)  throws MidiUnavailableException, InvalidMidiDataException {
+        Sequence sequence = new Sequence(Sequence.PPQ, noteSequences[0].getResolution());
+        for(NoteSequence ns: noteSequences) {
+            Track track = sequence.createTrack();
+            for (InstrumentChange change : ns.instrumentChanges) {
+                change.addMidiEvents(track);
+            }
+            for (Note note : ns.notes) {
+                note.addMidiEvents(track);
+            }
+        }
+        sequencer.setSequence(sequence);
+        sequencer.setTickPosition(0);
+        sequencer.open();
+        sequencer.start();
+    }
     public long getStartTick() {
         return startTick;
     }

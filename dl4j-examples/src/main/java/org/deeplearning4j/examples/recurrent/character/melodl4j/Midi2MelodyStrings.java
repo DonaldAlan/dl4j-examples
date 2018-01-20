@@ -4,7 +4,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.*;
-
 import javax.sound.midi.InvalidMidiDataException;
 import javax.sound.midi.MetaMessage;
 import javax.sound.midi.MidiEvent;
@@ -13,7 +12,6 @@ import javax.sound.midi.MidiSystem;
 import javax.sound.midi.Sequence;
 import javax.sound.midi.ShortMessage;
 import javax.sound.midi.Track;
-
 
 /*
  *  Parses MIDI files and outputs music in symbolic format, for input to MelodyModelingExample.
@@ -195,7 +193,8 @@ public class Midi2MelodyStrings {
     //-------------------------------------------------------------------
     public static void main(String[] args) { // You can download midi files from http://truthsite.org/music/bach-midi.zip and http://www.musedata.org
         try {
-            showSequencesForAllMidiFiles("d:/music/MIDI/classical/haydn", "d:/tmp/haydn-midi-melodies.txt", 10, false);
+            showSequencesForAllMidiFiles("d:/music/MIDI/classical/bach", "d:/tmp/midi-melodies-bach.txt",
+                "d:/tmp/midi-melodies-harmony-bach.txt", 10, false);
         } catch (Exception exc) {
             exc.printStackTrace();
             System.exit(1);
@@ -515,23 +514,27 @@ If not specified, the default tempo is 120 beats/minute, which is equivalent to 
     private static double smallestShortestLongestDurationRatio = Double.MAX_VALUE;
     private static int countShortestLongestDurationRatios = 0;
     private static final double MAXIMUM_ALLOWED_REST_PROPORTION = 0.2;
+    private static int countEditDistanceTooBig=0;
 
     // By default we show the top pitch of polyphonic tracks. If bottomPitchOnly is true we show the bottom pitch and skip monophonic tracks
-    private static void showSequencesForAllMidiFiles(File file, PrintWriter writer, int minLengthInNotes, boolean bottomPitchOnly) {
+    private static void showSequencesForAllMidiFiles(File file, PrintWriter monoWriter, PrintWriter harmonyWriter,int minLengthInNotes, boolean bottomPitchOnly) {
         if (file.isDirectory()) {
-            File[] children = file.listFiles();
+            final File[] children = file.listFiles();
             for (File child : children) {
-                showSequencesForAllMidiFiles(child, writer, minLengthInNotes, bottomPitchOnly);
+                showSequencesForAllMidiFiles(child, monoWriter,harmonyWriter, minLengthInNotes, bottomPitchOnly);
             }
         } else {
             if (!file.getAbsolutePath().toLowerCase().endsWith("mid")) {
                 return;
             }
-            Midi2MelodyStrings loader = new Midi2MelodyStrings();
+            final Midi2MelodyStrings loader = new Midi2MelodyStrings();
+            final List<String> melodies = new ArrayList<>();
             try {
                 //writer.println("\nFor " + file);
                 loader.loadPiece(file);
                 countMidiFilesProcessed++;
+                String previousMelody="";
+                monoWriter.println("// " + file.getCanonicalPath());
                 for (NoteSequence noteSequence : loader.piece.noteSequences) {
                     countNoteSequencesProcessed++;
                     int removed = noteSequence.removeAllButHigherOrLowerNotes(!bottomPitchOnly);
@@ -566,15 +569,37 @@ If not specified, the default tempo is 120 beats/minute, which is equivalent to 
                                 smallestShortestLongestDurationRatio = ratio;
                             }
                             System.out.println("shortest = " + shortestNote + ", longest = " + longestNote + ", ratio = " + ratio);
-                            showTrainingExamplesSymbolic(noteSequence, writer);
+                            String melody=showTrainingExamplesSymbolic(noteSequence);
+                            int startPitch=noteSequence.get(0).getRawNote();
+                            melody=startPitch + " " + melody;
+                            if (!melody.equals(previousMelody)) { //(StringUtils.editDistance(melody,previousMelody)> melody.length()/5)
+                                monoWriter.println(melody);
+                                melodies.add(melody);
+                                previousMelody=melody;
+                            } else {
+                                countEditDistanceTooBig++;
+                            }
                         }
-                        //writer.println(noteSequence);
                     }
+                }
+                monoWriter.println();
+                if (melodies.size()>1) {
+                    harmonyWriter.println("//" + file.getCanonicalPath());
+                    for (int i = 0; i < melodies.size(); i++) {
+                        String melody1 = melodies.get(i);
+                        for (int j = i + 1; j < melodies.size(); j++) {
+                            String melody2 = melodies.get(j);
+                            harmonyWriter.println(melody1);
+                            harmonyWriter.println(melody2);
+                        }
+                    }
+                    harmonyWriter.println();
                 }
             } catch (Exception e) {
                 e.printStackTrace();
                 System.err.println("While loading " + file + ", got " + e.getMessage());
             }
+
         }
     }
 
@@ -587,48 +612,50 @@ If not specified, the default tempo is 120 beats/minute, which is equivalent to 
         return durationChars.charAt(times);
     }
 
-    private static void showTrainingExamplesSymbolic(NoteSequence noteSequence, PrintWriter writer) {
+    private static String showTrainingExamplesSymbolic(NoteSequence noteSequence) {
         double averageNoteDuration = noteSequence.getAverageNoteDuration();
-        double durationDelta = averageNoteDuration / durationDeltaParts;
+        double durationDelta = averageNoteDuration/durationDeltaParts;
         Note lastNote = null;
-
-        for (Note note : noteSequence.getNotes()) {
-            if (lastNote == null) {
+        StringBuilder sb=new StringBuilder();
+        for(Note note: noteSequence.getNotes()) {
+            if (lastNote==null) {
                 long noteDuration = note.getDuration();
-                char noteDurationChar = computeDurationChar(noteDuration, durationDelta);
-                writer.print(noteDurationChar);
+                char noteDurationChar = computeDurationChar(noteDuration,durationDelta);
+                sb.append(noteDurationChar);
             } else {
                 long restDuration = note.getStartTick() - lastNote.getEndTick();
-                if (restDuration > 0) {
+                if (restDuration>0) {
                     char restDurationChar = computeDurationChar(restDuration, durationDelta);
-                    writer.print('R');
-                    writer.print(restDurationChar);
+                    sb.append('R');
+                    sb.append(restDurationChar);
                 }
-                int pitchGap = note.getRawNote() - lastNote.getRawNote();
-                while (pitchGap > 12) {
-                    pitchGap -= 12;
+                int pitchGap = note.getRawNote()- lastNote.getRawNote();
+                while (pitchGap>12) {
+                    pitchGap-=12;
                 }
-                while (pitchGap < -12) {
-                    pitchGap += 12;
+                while (pitchGap<-12) {
+                    pitchGap+=12;
                 }
-                writer.print(getCharForPitchGap(pitchGap));
+                sb.append(getCharForPitchGap(pitchGap));
                 long noteDuration = note.getDuration();
-                char noteDurationChar = computeDurationChar(noteDuration, durationDelta);
-                writer.print(noteDurationChar);
+                char noteDurationChar = computeDurationChar(noteDuration,durationDelta);
+                sb.append(noteDurationChar);
             }
-            lastNote = note;
+            lastNote=note;
         }
-        writer.println();
+        return sb.toString();
     }
 
-    private static void showSequencesForAllMidiFiles(String dir, String outPath, int minLengthInNotes, boolean bottomOnly) throws IOException {
-        PrintWriter printWriter = new PrintWriter(outPath);
+    private static void showSequencesForAllMidiFiles(String dir, String monoOutPath, String harmonyOutPath, int minLengthInNotes, boolean bottomOnly) throws IOException {
+        PrintWriter printWriter = new PrintWriter(monoOutPath);
+        PrintWriter harmonyWriter = new PrintWriter(harmonyOutPath);
         //showHeader(printWriter,k);
-        showSequencesForAllMidiFiles(new File(dir), printWriter, minLengthInNotes, bottomOnly);
+        showSequencesForAllMidiFiles(new File(dir), printWriter, harmonyWriter,minLengthInNotes, bottomOnly);
         printWriter.close();
         System.out.println(countMidiFilesProcessed + " midi files");
         System.out.println(countNoteSequencesProcessed + " note sequences");
         System.out.println(countNoteSequencesProcessedWithZeroPolyphony + " with zero polyphony");
+        System.out.println("countEditDistanceTooBig = " + countEditDistanceTooBig);
         double meanShortestLongestRatio = sumShortestLongestDurationRatios / countShortestLongestDurationRatios;
         System.out.println("smallestShortestLongestDurationRatio = " + smallestShortestLongestDurationRatio + ", mean shortest/longest ratio = " + meanShortestLongestRatio);
     }
